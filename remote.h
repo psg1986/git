@@ -107,6 +107,15 @@ struct remote {
 	char *http_proxy_authmethod;
 
 	struct string_list server_options;
+
+	/*
+	 * The setting for whether to update HEAD for the remote.
+	 * -1 never update
+	 * 0 create only (default)
+	 * 1 warn on change
+	 * 2 always update
+	 */
+	int follow_remote_head;
 };
 
 /**
