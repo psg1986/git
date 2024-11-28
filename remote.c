@@ -514,6 +514,15 @@ static int handle_config(const char *key, const char *value,
 	} else if (!strcmp(subkey, "serveroption")) {
 		return parse_transport_option(key, value,
 					      &remote->server_options);
+	} else if (!strcmp(subkey, "followremotehead")) {
+		if (!strcmp(value, "never"))
+			remote->follow_remote_head = -1;
+		else if (!strcmp(value, "create"))
+			remote->follow_remote_head = 0;
+		else if (!strcmp(value, "warn"))
+			remote->follow_remote_head = 1;
+		else if (!strcmp(value, "always"))
+			remote->follow_remote_head = 2;
 	}
 	return 0;
 }
