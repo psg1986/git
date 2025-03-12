@@ -74,6 +74,132 @@ test_expect_success "fetch test for-merge" '
 	cut -f -2 .git/FETCH_HEAD >actual &&
 	test_cmp expected actual'
 
+test_expect_success "fetch test remote HEAD" '
+	cd "$D" &&
+	cd two &&
+	git fetch &&
+	git rev-parse --verify refs/remotes/origin/HEAD &&
+	git rev-parse --verify refs/remotes/origin/main &&
+	head=$(git rev-parse refs/remotes/origin/HEAD) &&
+	branch=$(git rev-parse refs/remotes/origin/main) &&
+	test "z$head" = "z$branch"'
+
+test_expect_success "fetch test remote HEAD change" '
+	cd "$D" &&
+	cd two &&
+	git switch -c other &&
+	git push -u origin other &&
+	git rev-parse --verify refs/remotes/origin/HEAD &&
+	git rev-parse --verify refs/remotes/origin/main &&
+	git rev-parse --verify refs/remotes/origin/other &&
+	git remote set-head origin other &&
+	git fetch &&
+	head=$(git rev-parse refs/remotes/origin/HEAD) &&
+	branch=$(git rev-parse refs/remotes/origin/other) &&
+	test "z$head" = "z$branch"'
+
+test_expect_success "fetch test followRemoteHEAD never" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git update-ref --no-deref -d refs/remotes/origin/HEAD &&
+		git config set remote.origin.followRemoteHEAD "never" &&
+		git fetch &&
+		test_must_fail git rev-parse --verify refs/remotes/origin/HEAD
+	)
+'
+
+test_expect_success "fetch test followRemoteHEAD warn no change" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git rev-parse --verify refs/remotes/origin/other &&
+		git remote set-head origin other &&
+		git rev-parse --verify refs/remotes/origin/HEAD &&
+		git rev-parse --verify refs/remotes/origin/main &&
+		git config set remote.origin.followRemoteHEAD "warn" &&
+		git fetch >output &&
+		echo "${SQ}HEAD${SQ} at ${SQ}origin${SQ} is ${SQ}main${SQ}," \
+			"but we have ${SQ}other${SQ} locally." >expect &&
+		echo "Run ${SQ}git remote set-head origin main${SQ} to follow the change." >>expect &&
+		test_cmp expect output &&
+		head=$(git rev-parse refs/remotes/origin/HEAD) &&
+		branch=$(git rev-parse refs/remotes/origin/other) &&
+		test "z$head" = "z$branch"
+	)
+'
+
+test_expect_success "fetch test followRemoteHEAD warn create" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git update-ref --no-deref -d refs/remotes/origin/HEAD &&
+		git config set remote.origin.followRemoteHEAD "warn" &&
+		git rev-parse --verify refs/remotes/origin/main &&
+		output=$(git fetch) &&
+		test "z" = "z$output" &&
+		head=$(git rev-parse refs/remotes/origin/HEAD) &&
+		branch=$(git rev-parse refs/remotes/origin/main) &&
+		test "z$head" = "z$branch"
+	)
+'
+
+test_expect_success "fetch test followRemoteHEAD warn detached" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git update-ref --no-deref -d refs/remotes/origin/HEAD &&
+		git update-ref refs/remotes/origin/HEAD HEAD &&
+		HEAD=$(git log --pretty="%H") &&
+		git config set remote.origin.followRemoteHEAD "warn" &&
+		git fetch >output &&
+		echo "${SQ}HEAD${SQ} at ${SQ}origin${SQ} is ${SQ}main${SQ}," \
+			"but we have a detached HEAD pointing to" \
+			"${SQ}${HEAD}${SQ} locally." >expect &&
+		echo "Run ${SQ}git remote set-head origin main${SQ} to follow the change." >>expect &&
+		test_cmp expect output
+	)
+'
+
+test_expect_success "fetch test followRemoteHEAD warn quiet" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git rev-parse --verify refs/remotes/origin/other &&
+		git remote set-head origin other &&
+		git rev-parse --verify refs/remotes/origin/HEAD &&
+		git rev-parse --verify refs/remotes/origin/main &&
+		git config set remote.origin.followRemoteHEAD "warn" &&
+		output=$(git fetch --quiet) &&
+		test "z" = "z$output" &&
+		head=$(git rev-parse refs/remotes/origin/HEAD) &&
+		branch=$(git rev-parse refs/remotes/origin/other) &&
+		test "z$head" = "z$branch"
+	)
+'
+
+test_expect_success "fetch test followRemoteHEAD always" '
+	test_when_finished "git config unset remote.origin.followRemoteHEAD" &&
+	(
+		cd "$D" &&
+		cd two &&
+		git rev-parse --verify refs/remotes/origin/other &&
+		git remote set-head origin other &&
+		git rev-parse --verify refs/remotes/origin/HEAD &&
+		git rev-parse --verify refs/remotes/origin/main &&
+		git config set remote.origin.followRemoteHEAD "always" &&
+		git fetch &&
+		head=$(git rev-parse refs/remotes/origin/HEAD) &&
+		branch=$(git rev-parse refs/remotes/origin/main) &&
+		test "z$head" = "z$branch"
+	)
+'
+
 test_expect_success 'fetch --prune on its own works as expected' '
 	cd "$D" &&
 	git clone . prune &&
@@ -1061,7 +1187,12 @@ test_expect_success 'all boundary commits are excluded' '
 	test_tick &&
 	git merge otherside &&
 	ad=$(git log --no-walk --format=%ad HEAD) &&
-	git bundle create twoside-boundary.bdl main --since="$ad" &&
+
+	# If the --full-name-hash function is used here, then no delta
+	# pair is found and the bundle does not expand to three objects
+	# when fixing the thin object.
+	GIT_TEST_FULL_NAME_HASH=0 \
+		git bundle create twoside-boundary.bdl main --since="$ad" &&
 	test_bundle_object_count --thin twoside-boundary.bdl 3
 '
 

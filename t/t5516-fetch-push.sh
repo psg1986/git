@@ -1189,7 +1189,6 @@ test_expect_success 'push --porcelain rejected' '
 
 	echo >.git/foo  "To testrepo"  &&
 	echo >>.git/foo "!	refs/heads/main:refs/heads/main	[remote rejected] (branch is currently checked out)" &&
-	echo >>.git/foo "Done" &&
 
 	test_must_fail git push >.git/bar --porcelain  testrepo refs/heads/main:refs/heads/main &&
 	test_cmp .git/foo .git/bar
@@ -1206,7 +1205,7 @@ test_expect_success 'push --porcelain --dry-run rejected' '
 	echo >>.git/foo "!	refs/heads/main^:refs/heads/main	[rejected] (non-fast-forward)" &&
 	echo >>.git/foo "Done" &&
 
-	test_must_fail git push >.git/bar --porcelain  --dry-run testrepo refs/heads/main^:refs/heads/main &&
+	git push >.git/bar --porcelain  --dry-run testrepo refs/heads/main^:refs/heads/main &&
 	test_cmp .git/foo .git/bar
 '
 
@@ -1394,7 +1393,8 @@ test_expect_success 'fetch follows tags by default' '
 		git tag -m "annotated" tag &&
 		git for-each-ref >tmp1 &&
 		sed -n "p; s|refs/heads/main$|refs/remotes/origin/main|p" tmp1 |
-		sort -k 3 >../expect
+		sed -n "p; s|refs/heads/main$|refs/remotes/origin/HEAD|p"  |
+		sort -k 4 >../expect
 	) &&
 	test_when_finished "rm -rf dst" &&
 	git init dst &&

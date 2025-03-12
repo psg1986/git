@@ -16,6 +16,7 @@ struct fetch_pack_args {
 	const struct string_list *deepen_not;
 	struct list_objects_filter_options filter_options;
 	const struct string_list *server_options;
+	struct object_info *object_info_data;
 
 	/*
 	 * If not NULL, during packfile negotiation, fetch-pack will send "have"
@@ -42,6 +43,7 @@ struct fetch_pack_args {
 	unsigned reject_shallow_remote:1;
 	unsigned deepen:1;
 	unsigned refetch:1;
+	unsigned object_info:1;
 
 	/*
 	 * Indicate that the remote of this request is a promisor remote. The
@@ -105,5 +107,16 @@ int report_unmatched_refs(struct ref **sought, int nr_sought);
  * Return true if checks for broken objects in received pack are required.
  */
 int fetch_pack_fsck_objects(void);
+
+/*
+ * Check if the provided config variable pertains to fetch fsck and if so append
+ * the configuration to the provided strbuf.
+ *
+ * When a fetch fsck config option is successfully processed the function
+ * returns 0. If the provided config option is unrelated to fetch fsck, 1 is
+ * returned. Errors return -1.
+ */
+int fetch_pack_fsck_config(const char *var, const char *value,
+			   struct strbuf *msg_types);
 
 #endif
